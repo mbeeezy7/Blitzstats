@@ -1,0 +1,166 @@
+import { useState } from "react";
+
+export default function NCAAOnlineLeague() {
+  const [mockTeams, setMockTeams] = useState([]); // start empty
+  const [registeredUsers, setRegisteredUsers] = useState([
+    { username: "admin", password: "footballJesus", role: "admin" },
+    { username: "Ike", password: "Stewart", role: "viewer" }
+  ]);
+  const [seasons, setSeasons] = useState([]); // no games to start
+  const [newGame, setNewGame] = useState({ year: '', week: '', teamA: '', teamB: '', scoreA: '', scoreB: '' });
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [userRole, setUserRole] = useState(null);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [authInput, setAuthInput] = useState({ username: '', password: '' });
+
+  const login = () => {
+    const { username, password } = authInput;
+    const user = registeredUsers.find(u => u.username === username && u.password === password);
+    if (user) {
+      setIsAuthenticated(true);
+      setUserRole(user.role);
+      setCurrentUser(user.username);
+    } else {
+      alert("Login failed");
+    }
+  };
+
+  const promoteToAdmin = (username) => {
+    setRegisteredUsers((prev) =>
+      prev.map((u) =>
+        u.username === username ? { ...u, role: "admin" } : u
+      )
+    );
+  };
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setNewGame((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const addGame = () => {
+    const { year, week, teamA, teamB, scoreA, scoreB } = newGame;
+    if (!year || !week || !teamA || !teamB || scoreA === '' || scoreB === '') return;
+
+    const updatedSeasons = [...seasons];
+    const seasonIndex = updatedSeasons.findIndex((s) => s.year === parseInt(year));
+    const game = {
+      week: parseInt(week),
+      teamA: parseInt(teamA),
+      teamB: parseInt(teamB),
+      scoreA: parseInt(scoreA),
+      scoreB: parseInt(scoreB)
+    };
+
+    if (seasonIndex >= 0) {
+      updatedSeasons[seasonIndex].games.push(game);
+    } else {
+      updatedSeasons.push({ year: parseInt(year), games: [game] });
+    }
+
+    setSeasons(updatedSeasons);
+    setNewGame({ year: '', week: '', teamA: '', teamB: '', scoreA: '', scoreB: '' });
+  };
+
+  const getTeamName = (id) => {
+    return mockTeams.find(team => team.id === id)?.name || `Team ${id}`;
+  };
+
+  const calculateStandings = (season) => {
+    const standings = {};
+    season.games.forEach(({ teamA, teamB, scoreA, scoreB }) => {
+      [teamA, teamB].forEach((team) => {
+        if (!standings[team]) standings[team] = { wins: 0, losses: 0, pointsFor: 0, pointsAgainst: 0 };
+      });
+
+      standings[teamA].pointsFor += scoreA;
+      standings[teamA].pointsAgainst += scoreB;
+      standings[teamB].pointsFor += scoreB;
+      standings[teamB].pointsAgainst += scoreA;
+
+      if (scoreA > scoreB) {
+        standings[teamA].wins++;
+        standings[teamB].losses++;
+      } else {
+        standings[teamB].wins++;
+        standings[teamA].losses++;
+      }
+    });
+
+    return Object.entries(standings).map(([teamId, stats]) => ({
+      team: getTeamName(parseInt(teamId)),
+      ...stats
+    }));
+  };
+
+  if (!isAuthenticated) {
+    return (
+      <div style={{ padding: "2rem" }}>
+        <h2>Login</h2>
+        <input
+          placeholder="Username"
+          value={authInput.username}
+          onChange={(e) => setAuthInput({ ...authInput, username: e.target.value })}
+        />
+        <input
+          type="password"
+          placeholder="Password"
+          value={authInput.password}
+          onChange={(e) => setAuthInput({ ...authInput, password: e.target.value })}
+        />
+        <button onClick={login}>Log In</button>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ padding: "2rem" }}>
+      <h1>NCAA League Tracker</h1>
+      <p>Welcome, {currentUser} ({userRole})</p>
+
+      {userRole === "admin" && (
+        <div>
+          <h3>Add New Game</h3>
+          <input name="year" placeholder="Year" value={newGame.year} onChange={handleInputChange} />
+          <input name="week" placeholder="Week" value={newGame.week} onChange={handleInputChange} />
+          <input name="teamA" placeholder="Team A ID" value={newGame.teamA} onChange={handleInputChange} />
+          <input name="teamB" placeholder="Team B ID" value={newGame.teamB} onChange={handleInputChange} />
+          <input name="scoreA" placeholder="Score A" value={newGame.scoreA} onChange={handleInputChange} />
+          <input name="scoreB" placeholder="Score B" value={newGame.scoreB} onChange={handleInputChange} />
+          <button onClick={addGame}>Add Game</button>
+
+          <h4>Users</h4>
+          {registeredUsers.map((u, i) => (
+            <div key={i}>
+              {u.username} — {u.role}
+              {u.role !== "admin" && (
+                <button onClick={() => promoteToAdmin(u.username)}>Promote</button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div style={{ marginTop: "2rem" }}>
+        {seasons.map((season) => (
+          <div key={season.year}>
+            <h2>Season {season.year}</h2>
+            {season.games.map((g, i) => (
+              <div key={i}>
+                Week {g.week}: {getTeamName(g.teamA)} ({g.scoreA}) vs {getTeamName(g.teamB)} ({g.scoreB})
+              </div>
+            ))}
+            <h4>Standings</h4>
+            <ul>
+              {calculateStandings(season).map((team, i) => (
+                <li key={i}>
+                  {team.team}: {team.wins}W - {team.losses}L (PF: {team.pointsFor}, PA: {team.pointsAgainst})
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
